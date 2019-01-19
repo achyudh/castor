@@ -5,6 +5,7 @@ from .evaluators.trecqa_evaluator import TRECQAEvaluator
 from .evaluators.wikiqa_evaluator import WikiQAEvaluator
 from .evaluators.pit2015_evaluator import PIT2015Evaluator
 from .evaluators.reuters_evaluator import ReutersEvaluator
+from .evaluators.relevance_transfer_evaluator import RelevanceTransferEvaluator
 from .evaluators.snli_evaluator import SNLIEvaluator
 from .evaluators.sts2014_evaluator import STS2014Evaluator
 from .evaluators.quora_evaluator import QuoraEvaluator
@@ -29,6 +30,9 @@ class EvaluatorFactory(object):
         'AAPD': ReutersEvaluator,
         'IMDB': ReutersEvaluator,
         'Yelp2014': ReutersEvaluator,
+        'Robust04': RelevanceTransferEvaluator,
+        'Robust05': RelevanceTransferEvaluator,
+        'Robust45': RelevanceTransferEvaluator,
         'SNLI': SNLIEvaluator,
         'sts2014': STS2014Evaluator,
         'Quora': QuoraEvaluator

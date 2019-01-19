@@ -5,6 +5,7 @@ from .trainers.wikiqa_trainer import WikiQATrainer
 from .trainers.pit2015_trainer import PIT2015Trainer
 from .trainers.sst_trainer import SSTTrainer
 from .trainers.reuters_trainer import ReutersTrainer
+from .trainers.relevance_transfer_trainer import RelevanceTransferTrainer
 from .trainers.snli_trainer import SNLITrainer
 from .trainers.sts2014_trainer import STS2014Trainer
 from .trainers.quora_trainer import QuoraTrainer
@@ -29,6 +30,9 @@ class TrainerFactory(object):
         'AAPD': ReutersTrainer,
         'IMDB': ReutersTrainer,
         'Yelp2014': ReutersTrainer,
+        'Robust04': RelevanceTransferTrainer,
+        'Robust05': RelevanceTransferTrainer,
+        'Robust45': RelevanceTransferTrainer,
         'snli': SNLITrainer,
         'sts2014': STS2014Trainer,
         'quora': QuoraTrainer

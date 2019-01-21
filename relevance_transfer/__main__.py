@@ -13,8 +13,9 @@ from datasets.robust04 import Robust04
 from datasets.robust05 import Robust05
 from datasets.robust45 import Robust45
 from relevance_transfer.args import get_args
-from lstm_regularization.model import LSTMBaseline
-
+from lstm_regularization.model import LSTMBaseline as LSTMRegularized
+from lstm_baseline.model import LSTMBaseline
+from kim_cnn.model import KimCNN
 
 class UnknownWordVecCache(object):
     """
@@ -66,7 +67,7 @@ def save_ranks(pred_scores, output_path, limit=10000):
 
             rank = 1
             for docid, score in sorted_score:
-                output_file.write(f'{topic} Q0 {docid} {rank} {score} achyudh\n')
+                output_file.write(f'{topic} Q0 {docid} {rank} {score} Castor\n')
                 rank += 1
                 if rank > limit:
                     break
@@ -97,12 +98,23 @@ if __name__ == '__main__':
         'Robust05': Robust05
     }
 
+    model_map = {
+        'LSTMBaseline': LSTMBaseline,
+        'LSTMRegularized': LSTMRegularized,
+        'KimCNN': KimCNN
+    }
+
     if args.dataset not in dataset_map:
         raise ValueError('Unrecognized dataset')
     dataset = dataset_map[args.dataset]
     pred_scores = dict()
 
+    print('Dataset {} Mode {}'.format(args.dataset, args.mode))
+    topic_iter = 0
+
     for topic in dataset.TOPICS:
+        topic_iter += 1
+        print("Training on topic %d of %d..." % (topic_iter, len(dataset.TOPICS)))
         train_iter, dev_iter, test_iter = dataset.iters(args.data_dir, args.word_vectors_file, args.word_vectors_dir,
                                                         topic, batch_size=args.batch_size, device=args.gpu,
                                                         unk_init=UnknownWordVecCache.unk)
@@ -112,12 +124,11 @@ if __name__ == '__main__':
         config.target_class = train_iter.dataset.NUM_CLASSES
         config.words_num = len(train_iter.dataset.TEXT_FIELD.vocab)
 
-        print('Dataset {} Mode {}'.format(args.dataset, args.mode))
-        print('Vocab. size:', len(train_iter.dataset.TEXT_FIELD.vocab))
-        print('Num. of Target Classes:', train_iter.dataset.NUM_CLASSES)
-        print('Train Instance', len(train_iter.dataset))
-        print('Dev Instance', len(dev_iter.dataset))
-        print('Test Instance', len(test_iter.dataset))
+        print('Vocabulary size:', len(train_iter.dataset.TEXT_FIELD.vocab))
+        print('Target Classes:', train_iter.dataset.NUM_CLASSES)
+        print('Train Instances:', len(train_iter.dataset))
+        print('Dev Instances:', len(dev_iter.dataset))
+        print('Test Instances:', len(test_iter.dataset))
 
         if args.resume_snapshot:
             if args.cuda:
@@ -125,10 +136,14 @@ if __name__ == '__main__':
             else:
                 model = torch.load(args.resume_snapshot, map_location=lambda storage, location: storage)
         else:
-            model = LSTMBaseline(config)
+            if args.model not in model_map:
+                raise ValueError('Unrecognized model')
+            else:
+                model = model_map[args.model](config)
+
             if args.cuda:
                 model.cuda()
-                print('Shift model to GPU')
+                print('Shifting model to GPU...')
 
         parameter = filter(lambda p: p.requires_grad, model.parameters())
         optimizer = torch.optim.Adam(parameter, lr=args.lr, weight_decay=args.weight_decay)
@@ -166,19 +181,22 @@ if __name__ == '__main__':
 
         # Calculate dev and test metrics
         model = torch.load(trainer.snapshot_path)
-        if model.beta_ema > 0:
-            old_params = model.get_params()
-            model.load_ema_params()
+
+        if args.model == 'LSTMRegularized':
+            if model.beta_ema > 0:
+                old_params = model.get_params()
+                model.load_ema_params()
 
         if args.dataset not in dataset_map:
             raise ValueError('Unrecognized dataset')
         else:
             evaluate_dataset('dev', dataset_map[args.dataset], model, None, dev_iter, pred_scores,
                              args.batch_size, args.gpu, topic)
-            y_pred = evaluate_dataset('test', dataset_map[args.dataset], model, None, test_iter, pred_scores,
-                                      args.batch_size, args.gpu, topic)
+            evaluate_dataset('test', dataset_map[args.dataset], model, None, test_iter, pred_scores,
+                             args.batch_size, args.gpu, topic)
 
-        if model.beta_ema > 0:
-            model.load_params(old_params)
+        if args.model == 'LSTMRegularized':
+            if model.beta_ema > 0:
+                model.load_params(old_params)
 
-    save_ranks(pred_scores, "run.%s.lstm.topics.core17.txt" % args.dataset.lower())
+    save_ranks(pred_scores, "run.core17.lstm.topics.%s.txt" % args.dataset.lower())

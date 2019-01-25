@@ -1,6 +1,7 @@
-import numpy as np
 import os
 import re
+
+import numpy as np
 import torch
 from torchtext.data import NestedField, Field, TabularDataset
 from torchtext.data.iterator import BucketIterator
@@ -109,5 +110,5 @@ class ReutersCharQuantized(Reuters):
 
 
 class ReutersHierarchical(Reuters):
-    In_FIELD = Field(batch_first=True, tokenize=clean_string)
-    TEXT_FIELD = NestedField(In_FIELD, tokenize=split_sents)
+    NESTING_FIELD = Field(batch_first=True, tokenize=clean_string)
+    TEXT_FIELD = NestedField(NESTING_FIELD, tokenize=split_sents)

@@ -16,13 +16,12 @@ class RelevanceTransferTrainer(Trainer):
         super(RelevanceTransferTrainer, self).__init__(model, embedding, train_loader, trainer_config, train_evaluator, test_evaluator, dev_evaluator)
         self.config = trainer_config
         self.early_stop = False
-        self.best_dev_f1 = 0
+        self.best_dev_ap = 0
         self.iterations = 0
         self.iters_not_improved = 0
         self.start = None
-        self.log_template = ' '.join(
-            '{:>6.0f},{:>5.0f},{:>9.0f},{:>5.0f}/{:<5.0f} {:>7.0f}%,{:>8.6f},{:12.4f}'.split(','))
-        self.dev_log_template = ' '.join('{:>6.0f},{:>5.0f},{:>9.0f},{:>5.0f}/{:<5.0f} {:>7.4f},{:>8.4f},{:8.4f},{:12.4f},{:12.4f}'.split(','))
+        self.log_template = '{:>6.0f} {:>5.0f} {:>9.0f} {:>5.0f}/{:<5.0f}{:>3.0f}% {:>12.4f} {:8.4f}'
+        self.dev_log_template = '{:>6.0f} {:>5.0f} {:>9.0f}      {:4.4f} {:>8.4f} {:>7.4f} {:8.4f}'
         self.writer = SummaryWriter(log_dir="tensorboard_logs/" + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
         self.snapshot_path = os.path.join(self.model_outfile, self.train_loader.dataset.NAME, 'best_model.pt')
 
@@ -33,6 +32,8 @@ class RelevanceTransferTrainer(Trainer):
             self.iterations += 1
             self.model.train()
             self.optimizer.zero_grad()
+            # Clip gradients to address exploding gradients in LSTM
+            torch.nn.utils.clip_grad_norm_( self.model.parameters(), 0.25)
             if hasattr(self.model, 'TAR') and self.model.TAR:
                 if 'ignore_lengths' in self.config and self.config['ignore_lengths']:
                     scores, rnn_outs = self.model(batch.text)
@@ -44,16 +45,22 @@ class RelevanceTransferTrainer(Trainer):
                 else:
                     scores = self.model(batch.text[0], lengths=batch.text[1])
 
-            for tensor1, tensor2 in zip(torch.argmax(scores, dim=1), torch.argmax(batch.label.data, dim=1)):
-                if np.array_equal(tensor1, tensor2):
-                    n_correct += 1
-            loss = F.cross_entropy(scores, torch.argmax(batch.label.data, dim=1))
+            # Computing accuracy and loss
+            predictions = torch.sigmoid(scores).squeeze(dim=1)
+            for tensor1, tensor2 in zip(predictions.round(), batch.label):
+                try:
+                    if int(tensor1.item()) == int(tensor2.item()):
+                        n_correct += 1
+                except ValueError:
+                    # Ignore NaN/Inf values
+                    pass
+            loss = F.binary_cross_entropy(predictions, batch.label.float())
 
             if hasattr(self.model, 'TAR') and self.model.TAR:
                 loss = loss + (rnn_outs[1:] - rnn_outs[:-1]).pow(2).mean()
 
             n_total += batch.batch_size
-            train_acc = 100. * n_correct / n_total
+            train_acc = n_correct / n_total
             loss.backward()
             self.optimizer.step()
 
@@ -72,8 +79,8 @@ class RelevanceTransferTrainer(Trainer):
 
     def train(self, epochs):
         self.start = time.time()
-        header = '  Time Epoch Iteration Progress    (%Epoch)   Loss     Accuracy'
-        dev_header = '  Time Epoch Iteration Progress     Dev/Acc. Dev/Pr.  Dev/Recall   Dev/F1       Dev/Loss'
+        header = '  Time Epoch Iteration Progress %Epoch     Trn/Loss Trn/Acc.'
+        dev_header = '  Time Epoch Iteration    Dev/Loss Dev/Acc. Dev/Pr. Dev/APr.'
         # model_outfile is actually a directory, using model_outfile to conform to Trainer naming convention
         os.makedirs(self.model_outfile, exist_ok=True)
         os.makedirs(os.path.join(self.model_outfile, self.train_loader.dataset.NAME), exist_ok=True)
@@ -83,24 +90,23 @@ class RelevanceTransferTrainer(Trainer):
             self.train_epoch(epoch)
 
             # Evaluate performance on validation set
-            dev_acc, dev_precision, dev_recall, dev_f1, dev_loss = self.dev_evaluator.get_scores()[0]
+            dev_acc, dev_precision, dev_ap, dev_f1, dev_loss = self.dev_evaluator.get_scores()[0]
             self.writer.add_scalar('Dev/Loss', dev_loss, epoch)
             self.writer.add_scalar('Dev/Accuracy', dev_acc, epoch)
             self.writer.add_scalar('Dev/Precision', dev_precision, epoch)
-            self.writer.add_scalar('Dev/Recall', dev_recall, epoch)
-            self.writer.add_scalar('Dev/F-measure', dev_f1, epoch)
+            self.writer.add_scalar('Dev/AP', dev_ap, epoch)
             print('\n' + dev_header)
-            print(self.dev_log_template.format(time.time() - self.start, epoch, self.iterations, epoch, epochs,
-                                               dev_acc, dev_precision, dev_recall, dev_f1, dev_loss))
+            print(self.dev_log_template.format(time.time() - self.start, epoch, self.iterations,
+                                               dev_loss, dev_acc, dev_precision, dev_ap))
 
             # Update validation results
-            if dev_f1 > self.best_dev_f1:
+            if dev_f1 > self.best_dev_ap:
                 self.iters_not_improved = 0
-                self.best_dev_f1 = dev_f1
+                self.best_dev_ap = dev_f1
                 torch.save(self.model, self.snapshot_path)
             else:
                 self.iters_not_improved += 1
                 if self.iters_not_improved >= self.patience:
                     self.early_stop = True
-                    print("Early Stopping. Epoch: {}, Best Dev F1: {}".format(epoch, self.best_dev_f1))
+                    print("Early Stopping. Epoch: {}, Best Dev F1: {}".format(epoch, self.best_dev_ap))
                     break

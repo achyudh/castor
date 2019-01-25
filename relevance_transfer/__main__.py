@@ -1,21 +1,25 @@
-from copy import deepcopy
 import logging
 import random
+import time
+from copy import deepcopy
+import os
+import pickle
 
 import numpy as np
 import torch
-import torch.nn.functional as F
-from sklearn import metrics
 
 from common.evaluation import EvaluatorFactory
 from common.train import TrainerFactory
 from datasets.robust04 import Robust04
 from datasets.robust05 import Robust05
 from datasets.robust45 import Robust45
-from relevance_transfer.args import get_args
-from lstm_regularization.model import LSTMBaseline as LSTMRegularized
-from lstm_baseline.model import LSTMBaseline
 from kim_cnn.model import KimCNN
+from lstm_baseline.model import LSTMBaseline
+from han.model import HAN
+from lstm_regularization.model import LSTMBaseline as LSTMRegularized
+from relevance_transfer.args import get_args
+from relevance_transfer.rerank import rerank
+
 
 class UnknownWordVecCache(object):
     """
@@ -45,36 +49,37 @@ def get_logger():
     return logger
 
 
-def evaluate_dataset(split_name, dataset_cls, model, embedding, loader, pred_scores, batch_size, device, topic):
-    saved_model_evaluator = EvaluatorFactory.get_evaluator(dataset_cls, model, embedding, loader, batch_size, device)
-    scores, metric_names = saved_model_evaluator.get_scores()
+def evaluate_dataset(split_name, dataset_cls, model, embedding, loader, pred_scores, args, topic):
+    saved_model_evaluator = EvaluatorFactory.get_evaluator(dataset_cls, model, embedding, loader, args.batch_size, args.gpu)
     if split_name == 'test':
         pred_scores[topic] = (saved_model_evaluator.y_pred, saved_model_evaluator.docid)
-    print('Evaluation metrics for %s split from topic %s' % (topic, split_name))
-    print(metric_names)
-    print(scores)
+    else:
+        dev_acc, dev_precision, dev_ap, dev_loss = saved_model_evaluator.get_scores()[0]
+        dev_header = 'Dev/Loss Dev/Acc. Dev/Pr. Dev/APr.'
+        dev_log_template = '{:4.4f} {:>8.4f} {:>7.4f} {:8.4f}'
+        print('Evaluation metrics for %s split from topic %s' % (split_name, topic))
+        print(dev_header)
+        print(dev_log_template.format(dev_loss, dev_acc, dev_precision, dev_ap) + '\n')
     return saved_model_evaluator.y_pred
 
 
-def save_ranks(pred_scores, output_path, limit=10000):
+def save_ranks(pred_scores, output_path):
     with open(output_path, 'w') as output_file:
         for topic in pred_scores:
             scores, docid = pred_scores[topic]
-            scores = np.array(scores)[:, 1]
-            s_min, s_max = min(scores), max(scores)
-            scores = (scores - s_min) / (s_max - s_min)
-            sorted_score = sorted(list(zip(docid, scores)), key=lambda x: -x[1])
-
-            rank = 1
-            for docid, score in sorted_score:
+            print("Saving %d results for topic %s..." % (len(docid), topic))
+            # scores = np.nan_to_num(np.array(scores))
+            # s_min, s_max = min(scores), max(scores)
+            # scores = (scores - s_min) / (s_max - s_min)
+            sorted_score = sorted(list(zip(scores, docid)), reverse=True)
+            rank = 1  # Reset rank counter to one
+            for score, docid in sorted_score:
                 output_file.write(f'{topic} Q0 {docid} {rank} {score} Castor\n')
                 rank += 1
-                if rank > limit:
-                    break
 
 
 if __name__ == '__main__':
-    # Set default configuration in : args.py
+    # Load command line args
     args = get_args()
 
     # Set random seed for reproducibility
@@ -107,35 +112,43 @@ if __name__ == '__main__':
     if args.dataset not in dataset_map:
         raise ValueError('Unrecognized dataset')
     dataset = dataset_map[args.dataset]
-    pred_scores = dict()
+    print('Dataset:', args.dataset)
 
-    print('Dataset {} Mode {}'.format(args.dataset, args.mode))
-    topic_iter = 0
+    if args.rerank:
+        rerank(args, dataset)
 
-    for topic in dataset.TOPICS:
-        topic_iter += 1
-        print("Training on topic %d of %d..." % (topic_iter, len(dataset.TOPICS)))
-        train_iter, dev_iter, test_iter = dataset.iters(args.data_dir, args.word_vectors_file, args.word_vectors_dir,
-                                                        topic, batch_size=args.batch_size, device=args.gpu,
-                                                        unk_init=UnknownWordVecCache.unk)
-
-        config = deepcopy(args)
-        config.dataset = train_iter.dataset
-        config.target_class = train_iter.dataset.NUM_CLASSES
-        config.words_num = len(train_iter.dataset.TEXT_FIELD.vocab)
-
-        print('Vocabulary size:', len(train_iter.dataset.TEXT_FIELD.vocab))
-        print('Target Classes:', train_iter.dataset.NUM_CLASSES)
-        print('Train Instances:', len(train_iter.dataset))
-        print('Dev Instances:', len(dev_iter.dataset))
-        print('Test Instances:', len(test_iter.dataset))
-
+    else:
+        topic_iter = 0
+        cache_path = os.path.splitext(args.output_path)[0] + '.pkl'
         if args.resume_snapshot:
-            if args.cuda:
-                model = torch.load(args.resume_snapshot, map_location=lambda storage, location: storage.cuda(args.gpu))
-            else:
-                model = torch.load(args.resume_snapshot, map_location=lambda storage, location: storage)
+            # Load previous cached run
+            with open(cache_path, 'rb') as cache_file:
+                pred_scores = pickle.load(cache_file)
         else:
+            pred_scores = dict()
+
+        for topic in dataset.TOPICS:
+            topic_iter += 1
+            # Skip topics that have already been predicted
+            if args.resume_snapshot and topic in pred_scores:
+                continue
+
+            print("Training on topic %d of %d..." % (topic_iter, len(dataset.TOPICS)))
+            train_iter, dev_iter, test_iter = dataset.iters(args.data_dir, args.word_vectors_file, args.word_vectors_dir,
+                                                            topic, batch_size=args.batch_size, device=args.gpu,
+                                                            unk_init=UnknownWordVecCache.unk)
+
+            config = deepcopy(args)
+            config.target_class = 1
+            config.dataset = train_iter.dataset
+            config.words_num = len(train_iter.dataset.TEXT_FIELD.vocab)
+
+            print('Vocabulary size:', len(train_iter.dataset.TEXT_FIELD.vocab))
+            print('Target Classes:', train_iter.dataset.NUM_CLASSES)
+            print('Train Instances:', len(train_iter.dataset))
+            print('Dev Instances:', len(dev_iter.dataset))
+            print('Test Instances:', len(test_iter.dataset))
+
             if args.model not in model_map:
                 raise ValueError('Unrecognized model')
             else:
@@ -145,58 +158,59 @@ if __name__ == '__main__':
                 model.cuda()
                 print('Shifting model to GPU...')
 
-        parameter = filter(lambda p: p.requires_grad, model.parameters())
-        optimizer = torch.optim.Adam(parameter, lr=args.lr, weight_decay=args.weight_decay)
+            parameter = filter(lambda p: p.requires_grad, model.parameters())
+            optimizer = torch.optim.Adam(parameter, lr=args.lr, weight_decay=args.weight_decay)
 
-        if args.dataset not in dataset_map:
-            raise ValueError('Unrecognized dataset')
-        else:
-            train_evaluator = EvaluatorFactory.get_evaluator(dataset_map[args.dataset], model, None, train_iter,
-                                                             args.batch_size, args.gpu)
-            test_evaluator = EvaluatorFactory.get_evaluator(dataset_map[args.dataset], model, None, test_iter,
-                                                            args.batch_size, args.gpu)
-            dev_evaluator = EvaluatorFactory.get_evaluator(dataset_map[args.dataset], model, None, dev_iter,
-                                                           args.batch_size, args.gpu)
-
-        trainer_config = {
-            'optimizer': optimizer,
-            'batch_size': args.batch_size,
-            'log_interval': args.log_every,
-            'dev_log_interval': args.dev_every,
-            'patience': args.patience,
-            'model_outfile': args.save_path,
-            'logger': logger,
-        }
-
-        trainer = TrainerFactory.get_trainer(args.dataset, model, None, train_iter, trainer_config, train_evaluator,
-                                             test_evaluator, dev_evaluator)
-
-        if not args.trained_model:
-            trainer.train(args.epochs)
-        else:
-            if args.cuda:
-                model = torch.load(args.trained_model, map_location=lambda storage, location: storage.cuda(args.gpu))
+            if args.dataset not in dataset_map:
+                raise ValueError('Unrecognized dataset')
             else:
-                model = torch.load(args.trained_model, map_location=lambda storage, location: storage)
+                train_evaluator = EvaluatorFactory.get_evaluator(dataset_map[args.dataset], model, None, train_iter,
+                                                                 args.batch_size, args.gpu)
+                test_evaluator = EvaluatorFactory.get_evaluator(dataset_map[args.dataset], model, None, test_iter,
+                                                                args.batch_size, args.gpu)
+                dev_evaluator = EvaluatorFactory.get_evaluator(dataset_map[args.dataset], model, None, dev_iter,
+                                                               args.batch_size, args.gpu)
 
-        # Calculate dev and test metrics
-        model = torch.load(trainer.snapshot_path)
+            trainer_config = {
+                'optimizer': optimizer,
+                'batch_size': args.batch_size,
+                'log_interval': args.log_every,
+                'dev_log_interval': args.dev_every,
+                'patience': args.patience,
+                'model_outfile': args.save_path,
+                'logger': logger,
+            }
 
-        if args.model == 'LSTMRegularized':
-            if model.beta_ema > 0:
-                old_params = model.get_params()
-                model.load_ema_params()
+            trainer = TrainerFactory.get_trainer(args.dataset, model, None, train_iter, trainer_config, train_evaluator,
+                                                 test_evaluator, dev_evaluator)
 
-        if args.dataset not in dataset_map:
-            raise ValueError('Unrecognized dataset')
-        else:
-            evaluate_dataset('dev', dataset_map[args.dataset], model, None, dev_iter, pred_scores,
-                             args.batch_size, args.gpu, topic)
-            evaluate_dataset('test', dataset_map[args.dataset], model, None, test_iter, pred_scores,
-                             args.batch_size, args.gpu, topic)
+            if not args.trained_model:
+                trainer.train(args.epochs)
+            else:
+                if args.cuda:
+                    model = torch.load(args.trained_model, map_location=lambda storage, location: storage.cuda(args.gpu))
+                else:
+                    model = torch.load(args.trained_model, map_location=lambda storage, location: storage)
 
-        if args.model == 'LSTMRegularized':
-            if model.beta_ema > 0:
-                model.load_params(old_params)
+            # Calculate dev and test metrics
+            model = torch.load(trainer.snapshot_path)
 
-    save_ranks(pred_scores, "run.core17.lstm.topics.%s.txt" % args.dataset.lower())
+            if args.model == 'LSTMRegularized':
+                if model.beta_ema > 0:
+                    old_params = model.get_params()
+                    model.load_ema_params()
+
+            if args.dataset not in dataset_map:
+                raise ValueError('Unrecognized dataset')
+            else:
+                evaluate_dataset('dev', dataset_map[args.dataset], model, None, dev_iter, pred_scores, args, topic)
+                evaluate_dataset('test', dataset_map[args.dataset], model, None, test_iter, pred_scores, args, topic)
+
+            if args.model == 'LSTMRegularized':
+                if model.beta_ema > 0:
+                    model.load_params(old_params)
+
+            with open(cache_path, 'wb') as cache_file:
+                pickle.dump(pred_scores, cache_file)
+
+        save_ranks(pred_scores, args.output_path)

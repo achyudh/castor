@@ -10,9 +10,9 @@ import torch
 
 from common.evaluation import EvaluatorFactory
 from common.train import TrainerFactory
-from datasets.robust04 import Robust04
-from datasets.robust05 import Robust05
-from datasets.robust45 import Robust45
+from datasets.robust04 import Robust04, Robust04Hierarchical, Robust04CharQuantized
+from datasets.robust05 import Robust05, Robust05Hierarchical, Robust05CharQuantized
+from datasets.robust45 import Robust45, Robust45Hierarchical, Robust45CharQuantized
 from kim_cnn.model import KimCNN
 from lstm_baseline.model import LSTMBaseline
 from han.model import HAN
@@ -51,12 +51,15 @@ def get_logger():
 
 def evaluate_dataset(split_name, dataset_cls, model, embedding, loader, pred_scores, args, topic):
     saved_model_evaluator = EvaluatorFactory.get_evaluator(dataset_cls, model, embedding, loader, args.batch_size, args.gpu)
+    if args.model == 'HAN':
+        saved_model_evaluator.ignore_lengths = True
+    dev_acc, dev_precision, dev_ap, dev_f1, dev_loss = saved_model_evaluator.get_scores()[0]
+
     if split_name == 'test':
         pred_scores[topic] = (saved_model_evaluator.y_pred, saved_model_evaluator.docid)
     else:
-        dev_acc, dev_precision, dev_ap, dev_loss = saved_model_evaluator.get_scores()[0]
         dev_header = 'Dev/Loss Dev/Acc. Dev/Pr. Dev/APr.'
-        dev_log_template = '{:4.4f} {:>8.4f} {:>7.4f} {:8.4f}'
+        dev_log_template = '{:4.4f} {:>8.4f}   {:>4.4f} {:4.4f}'
         print('Evaluation metrics for %s split from topic %s' % (split_name, topic))
         print(dev_header)
         print(dev_log_template.format(dev_loss, dev_acc, dev_precision, dev_ap) + '\n')
@@ -103,15 +106,29 @@ if __name__ == '__main__':
         'Robust05': Robust05
     }
 
+    dataset_map_hi = {
+        'Robust04': Robust04Hierarchical,
+        'Robust45': Robust45Hierarchical,
+        'Robust05': Robust05Hierarchical
+    }
+
+    dataset_map_cq = {
+        'Robust04': Robust04CharQuantized,
+        'Robust45': Robust45CharQuantized,
+        'Robust05': Robust05CharQuantized
+    }
+
     model_map = {
         'LSTMBaseline': LSTMBaseline,
         'LSTMRegularized': LSTMRegularized,
-        'KimCNN': KimCNN
+        'KimCNN': KimCNN,
+        'HAN': HAN
     }
 
-    if args.dataset not in dataset_map:
-        raise ValueError('Unrecognized dataset')
-    dataset = dataset_map[args.dataset]
+    if args.model == 'HAN':
+        dataset = dataset_map_hi[args.dataset]
+    else:
+        dataset = dataset_map[args.dataset]
     print('Dataset:', args.dataset)
 
     if args.rerank:
@@ -149,10 +166,7 @@ if __name__ == '__main__':
             print('Dev Instances:', len(dev_iter.dataset))
             print('Test Instances:', len(test_iter.dataset))
 
-            if args.model not in model_map:
-                raise ValueError('Unrecognized model')
-            else:
-                model = model_map[args.model](config)
+            model = model_map[args.model](config)
 
             if args.cuda:
                 model.cuda()
@@ -180,6 +194,11 @@ if __name__ == '__main__':
                 'model_outfile': args.save_path,
                 'logger': logger,
             }
+
+            if args.model == 'HAN':
+                trainer_config['ignore_lengths'] = True
+                dev_evaluator.ignore_lengths = True
+                test_evaluator.ignore_lengths = True
 
             trainer = TrainerFactory.get_trainer(args.dataset, model, None, train_iter, trainer_config, train_evaluator,
                                                  test_evaluator, dev_evaluator)

@@ -12,7 +12,7 @@ def get_args():
     parser.add_argument('--mode', type=str, default='static', choices=['rand', 'static', 'non-static', 'multichannel'])
     parser.add_argument('--lr', type=float, default=0.001)
     parser.add_argument('--seed', type=int, default=3435)
-    parser.add_argument('--model', type=str, default='LSTMBaseline', choices=['LSTMBaseline', 'LSTMRegularized', 'KimCNN'])
+    parser.add_argument('--model', type=str, default='LSTMBaseline', choices=['LSTMBaseline', 'LSTMRegularized', 'KimCNN', 'HAN'])
     parser.add_argument('--dataset', type=str, default='Robust04', choices=['Robust04', 'Robust05', 'Robust45'])
     parser.add_argument('--dev_every', type=int, default=30)
     parser.add_argument('--log_every', type=int, default=10)
@@ -47,6 +47,10 @@ def get_args():
     # KimCNN parameters
     parser.add_argument('--batchnorm', action='store_true')
     parser.add_argument('--output_channel', type=int, default=100)
+
+    # HAN parameters
+    parser.add_argument('--word-num-hidden', type=int, default=50)
+    parser.add_argument('--sentence-num-hidden', type=int, default=50)
 
     # Reranking parameters
     parser.add_argument('--rerank', action='store_true')

@@ -1,72 +1,15 @@
 import csv
 import os
-import pickle
-import re
 import sys
 
-import numpy as np
 import torch
 from torchtext.data import NestedField, Field, TabularDataset
 from torchtext.data.iterator import BucketIterator
 from torchtext.vocab import Vectors
 
+from .robust45 import clean_string, split_sents, char_quantize, process_docids, process_labels
+
 csv.field_size_limit(sys.maxsize)
-
-
-def clean_string(string):
-    """
-    Performs tokenization and string cleaning
-    """
-    string = re.sub(r"[^A-Za-z0-9(),!?\'`]", " ", string)
-    string = re.sub(r"\s{2,}", " ", string)
-    return string.lower().strip().split()[:1000]
-
-
-def split_sents(string):
-    string = re.sub(r"[!?]"," ", string)
-    return string.strip().split('.')
-
-
-def char_quantize(string, max_length=1000):
-    identity = np.identity(len(Robust05CharQuantized.ALPHABET))
-    quantized_string = np.array([identity[Robust05CharQuantized.ALPHABET[char]] for char in list(string.lower()) if char in Robust05CharQuantized.ALPHABET], dtype=np.float32)
-    if len(quantized_string) > max_length:
-        return quantized_string[:max_length]
-    else:
-        return np.concatenate((quantized_string, np.zeros((max_length - len(quantized_string), len(Robust05CharQuantized.ALPHABET)), dtype=np.float32)))
-
-
-def clean_string_fl(string):
-    """
-    Returns only the title and first line (excluding the title) for every news article, then calls clean_string
-    """
-    split_string = string.split('.')
-    if len(split_string) > 1:
-            return clean_string(split_string[0] + ". " + split_string[1])
-    else:
-        return clean_string(string)
-
-
-def process_labels(string):
-    """
-    Returns the label string as a list of integers
-    :param string:
-    :return:
-    """
-    return [float(x) for x in string]
-
-
-def process_docids(string):
-    """
-    Returns the label string as a list of integers
-    :param string:
-    :return:
-    """
-    try:
-        docid = int(string)
-    except ValueError:
-        docid = 0
-    return docid
 
 
 class Robust05(TabularDataset):

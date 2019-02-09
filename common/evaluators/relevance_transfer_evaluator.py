@@ -54,7 +54,7 @@ class RelevanceTransferEvaluator(Evaluator):
         target_labels = np.array(self.y_target)
         accuracy = metrics.accuracy_score(target_labels, predicted_labels)
         average_precision = metrics.average_precision_score(target_labels, predicted_labels, average=None)
-        f1 = metrics.f1_score(target_labels, predicted_labels, average='micro')
+        f1 = metrics.f1_score(target_labels, predicted_labels, average='macro')
         avg_loss = total_loss / len(self.data_loader.dataset.examples)
 
         try:

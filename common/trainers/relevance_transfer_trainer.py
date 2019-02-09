@@ -6,8 +6,10 @@ import os
 import torch
 import torch.nn.functional as F
 from tensorboardX import SummaryWriter
+from torch.utils.data.dataloader import default_collate
 
-from .trainer import Trainer
+from relevance_transfer.data_sampler import ImbalancedDatasetSampler
+from common.trainers.trainer import Trainer
 
 
 class RelevanceTransferTrainer(Trainer):
@@ -33,28 +35,39 @@ class RelevanceTransferTrainer(Trainer):
             self.model.train()
             self.optimizer.zero_grad()
             # Clip gradients to address exploding gradients in LSTM
-            torch.nn.utils.clip_grad_norm_( self.model.parameters(), 0.25)
+            torch.nn.utils.clip_grad_norm_( self.model.parameters(), 25.0)
+
+            # Randomly sample equal number of positive and negative documents
+            if 'ignore_lengths' in self.config and self.config['ignore_lengths']:
+                indices = ImbalancedDatasetSampler(batch.text, batch.label).get_indices()
+                batch_text = batch.text[indices]
+            else:
+                indices = ImbalancedDatasetSampler(batch.text[0], batch.label).get_indices()
+                batch_text = batch.text[0][indices]
+                batch_lengths = batch.text[1][indices]
+            batch_label = batch.label[indices]
+
             if hasattr(self.model, 'TAR') and self.model.TAR:
                 if 'ignore_lengths' in self.config and self.config['ignore_lengths']:
-                    scores, rnn_outs = self.model(batch.text)
+                    scores, rnn_outs = self.model(batch_text)
                 else:
-                    scores, rnn_outs = self.model(batch.text[0], lengths=batch.text[1])
+                    scores, rnn_outs = self.model(batch_text, lengths=batch_lengths)
             else:
                 if 'ignore_lengths' in self.config and self.config['ignore_lengths']:
-                    scores = self.model(batch.text)
+                    scores = self.model(batch_text)
                 else:
-                    scores = self.model(batch.text[0], lengths=batch.text[1])
+                    scores = self.model(batch_text, lengths=batch_lengths)
 
             # Computing accuracy and loss
             predictions = torch.sigmoid(scores).squeeze(dim=1)
-            for tensor1, tensor2 in zip(predictions.round(), batch.label):
+            for tensor1, tensor2 in zip(predictions.round(), batch_label):
                 try:
                     if int(tensor1.item()) == int(tensor2.item()):
                         n_correct += 1
                 except ValueError:
                     # Ignore NaN/Inf values
                     pass
-            loss = F.binary_cross_entropy(predictions, batch.label.float())
+            loss = F.binary_cross_entropy(predictions, batch_label.float())
 
             if hasattr(self.model, 'TAR') and self.model.TAR:
                 loss = loss + (rnn_outs[1:] - rnn_outs[:-1]).pow(2).mean()

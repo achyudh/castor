@@ -11,12 +11,12 @@ from datasets.reuters import clean_string, clean_string_fl, split_sents
 
 
 def char_quantize(string, max_length=1000):
-    identity = np.identity(len(JiraCharQuantized.ALPHABET))
-    quantized_string = np.array([identity[JiraCharQuantized.ALPHABET[char]] for char in list(string.lower()) if char in JiraCharQuantized.ALPHABET], dtype=np.float32)
+    identity = np.identity(len(GerritCharQuantized.ALPHABET))
+    quantized_string = np.array([identity[GerritCharQuantized.ALPHABET[char]] for char in list(string.lower()) if char in GerritCharQuantized.ALPHABET], dtype=np.float32)
     if len(quantized_string) > max_length:
         return quantized_string[:max_length]
     else:
-        return np.concatenate((quantized_string, np.zeros((max_length - len(quantized_string), len(JiraCharQuantized.ALPHABET)), dtype=np.float32)))
+        return np.concatenate((quantized_string, np.zeros((max_length - len(quantized_string), len(GerritCharQuantized.ALPHABET)), dtype=np.float32)))
 
 
 def process_labels(string):
@@ -28,8 +28,8 @@ def process_labels(string):
     return [float(x) for x in string]
 
 
-class Jira(TabularDataset):
-    NAME = 'Jira'
+class Gerrit(TabularDataset):
+    NAME = 'Gerrit'
     NUM_CLASSES = 2
     TEXT_FIELD = Field(batch_first=True, tokenize=clean_string, include_lengths=True)
     LABEL_FIELD = Field(sequential=False, use_vocab=False, batch_first=True, preprocessing=process_labels)
@@ -39,10 +39,10 @@ class Jira(TabularDataset):
         return len(ex.text)
 
     @classmethod
-    def splits(cls, path, train=os.path.join('SentimentSE', 'data', 'jira_aug_train.tsv'),
-               validation=os.path.join('SentimentSE', 'data', 'jira_validation.tsv'),
+    def splits(cls, path, train=os.path.join('SentimentSE', 'data', 'gerrit_train.tsv'),
+               validation=os.path.join('SentimentSE', 'data', 'gerrit_validation.tsv'),
                test=os.path.join('SentimentSE', 'data', 'jira_test.tsv'), **kwargs):
-        return super(Jira, cls).splits(
+        return super(Gerrit, cls).splits(
             path, train=train, validation=validation, test=test,
             format='tsv', fields=[('label', cls.LABEL_FIELD), ('text', cls.TEXT_FIELD)]
         )
@@ -69,7 +69,7 @@ class Jira(TabularDataset):
                                      sort_within_batch=True, device=device)
 
 
-class JiraCharQuantized(Jira):
+class GerritCharQuantized(Gerrit):
     ALPHABET = dict(map(lambda t: (t[1], t[0]), enumerate(list("""abcdefghijklmnopqrstuvwxyz0123456789,;.!?:'\"/\\|_@#$%^&*~`+-=<>()[]{}"""))))
     TEXT_FIELD = Field(sequential=False, use_vocab=False, batch_first=True, preprocessing=char_quantize)
 
@@ -86,6 +86,6 @@ class JiraCharQuantized(Jira):
         return BucketIterator.splits((train, val, test), batch_size=batch_size, repeat=False, shuffle=shuffle, device=device)
 
 
-class JiraHierarchical(Jira):
+class GerritHierarchical(Gerrit):
     NESTING_FIELD = Field(batch_first=True, tokenize=clean_string)
     TEXT_FIELD = NestedField(NESTING_FIELD, tokenize=split_sents)

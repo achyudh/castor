@@ -7,7 +7,7 @@ from torchtext.data import NestedField, Field, TabularDataset
 from torchtext.data.iterator import BucketIterator
 from torchtext.vocab import Vectors
 
-from datasets.reuters import clean_string, clean_string_fl, split_sents
+from datasets.reuters import clean_string, char_quantize, split_sents
 
 
 def process_labels(string):

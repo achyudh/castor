@@ -1,9 +1,9 @@
 import logging
-import random
-import time
-from copy import deepcopy
 import os
 import pickle
+import random
+from collections import defaultdict
+from copy import deepcopy
 
 import numpy as np
 import torch
@@ -13,12 +13,13 @@ from common.train import TrainerFactory
 from datasets.robust04 import Robust04, Robust04Hierarchical, Robust04CharQuantized
 from datasets.robust05 import Robust05, Robust05Hierarchical, Robust05CharQuantized
 from datasets.robust45 import Robust45, Robust45Hierarchical, Robust45CharQuantized
+from han.model import HAN
 from kim_cnn.model import KimCNN
 from lstm_baseline.model import LSTMBaseline
-from han.model import HAN
 from lstm_regularization.model import LSTMBaseline as LSTMRegularized
 from relevance_transfer.args import get_args
 from relevance_transfer.rerank import rerank
+from xml_cnn.model import XmlCNN
 
 
 class UnknownWordVecCache(object):
@@ -70,11 +71,12 @@ def save_ranks(pred_scores, output_path):
     with open(output_path, 'w') as output_file:
         for topic in pred_scores:
             scores, docid = pred_scores[topic]
-            print("Saving %d results for topic %s..." % (len(docid), topic))
-            # scores = np.nan_to_num(np.array(scores))
-            # s_min, s_max = min(scores), max(scores)
-            # scores = (scores - s_min) / (s_max - s_min)
-            sorted_score = sorted(list(zip(scores, docid)), reverse=True)
+            max_scores = defaultdict(list)
+            for score, docid in zip(scores, docid):
+                max_scores[docid].append(score)
+
+            print("Saving %d results for topic %s..." % (len(max_scores), topic))
+            sorted_score = sorted(((sum(scores)/len(scores), docid) for docid, scores in max_scores.items()), reverse=True)
             rank = 1  # Reset rank counter to one
             for score, docid in sorted_score:
                 output_file.write(f'{topic} Q0 {docid} {rank} {score} Castor\n')
@@ -122,7 +124,8 @@ if __name__ == '__main__':
         'LSTMBaseline': LSTMBaseline,
         'LSTMRegularized': LSTMRegularized,
         'KimCNN': KimCNN,
-        'HAN': HAN
+        'HAN': HAN,
+        'XML-CNN': XmlCNN
     }
 
     if args.model == 'HAN':
@@ -193,6 +196,7 @@ if __name__ == '__main__':
                 'patience': args.patience,
                 'model_outfile': args.save_path,
                 'logger': logger,
+                'resample': args.resample
             }
 
             if args.model == 'HAN':

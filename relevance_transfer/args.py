@@ -12,7 +12,7 @@ def get_args():
     parser.add_argument('--mode', type=str, default='static', choices=['rand', 'static', 'non-static', 'multichannel'])
     parser.add_argument('--lr', type=float, default=0.001)
     parser.add_argument('--seed', type=int, default=3435)
-    parser.add_argument('--model', type=str, default='LSTMBaseline', choices=['LSTMBaseline', 'LSTMRegularized', 'KimCNN', 'HAN'])
+    parser.add_argument('--model', type=str, default='LSTMBaseline', choices=['LSTMBaseline', 'LSTMRegularized', 'KimCNN', 'HAN', 'XML-CNN'])
     parser.add_argument('--dataset', type=str, default='Robust04', choices=['Robust04', 'Robust05', 'Robust45'])
     parser.add_argument('--dev_every', type=int, default=30)
     parser.add_argument('--log_every', type=int, default=10)
@@ -30,6 +30,7 @@ def get_args():
     parser.add_argument('--trained_model', type=str, default="")
     parser.add_argument("--output-path", type=str, help='output path for rank file', default="run.core17.lstm.topics.robust00.txt")
     parser.add_argument('--resume-snapshot', action='store_true')
+    parser.add_argument('--resample', action='store_true')
 
     # Baseline LSTM parameters
     parser.add_argument('--bottleneck-layer', action='store_true')
@@ -46,11 +47,16 @@ def get_args():
 
     # KimCNN parameters
     parser.add_argument('--batchnorm', action='store_true')
-    parser.add_argument('--output_channel', type=int, default=100)
+    parser.add_argument('--dynamic-pool', action='store_true')
+    parser.add_argument('--output-channel', type=int, default=100)
 
     # HAN parameters
     parser.add_argument('--word-num-hidden', type=int, default=50)
     parser.add_argument('--sentence-num-hidden', type=int, default=50)
+
+    # XML-CNN parameters
+    parser.add_argument('--num-bottleneck-hidden', type=int, default=100)
+    parser.add_argument('--dynamic-pool-length', type=int, default=8)
 
     # Reranking parameters
     parser.add_argument('--rerank', action='store_true')

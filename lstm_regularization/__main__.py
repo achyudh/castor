@@ -15,8 +15,13 @@ from datasets.reuters import Reuters
 from datasets.aapd import AAPD
 from datasets.imdb import IMDB
 from datasets.yelp2014 import Yelp2014
+from datasets.jira import Jira
+from datasets.gerrit import Gerrit
+from datasets.app_reviews import AppReviews
+from datasets.so_java import SOJava
 from lstm_regularization.args import get_args
 from lstm_regularization.model import LSTMBaseline
+
 
 class UnknownWordVecCache(object):
     """
@@ -82,7 +87,11 @@ if __name__ == '__main__':
         'Reuters': Reuters,
         'AAPD': AAPD,
         'IMDB': IMDB,
-        'Yelp2014': Yelp2014
+        'Yelp2014': Yelp2014,
+        'Jira': Jira,
+        'Gerrit': Gerrit,
+        'AppReviews': AppReviews,
+        'SOJava': SOJava
     }
 
     if args.dataset not in dataset_map:

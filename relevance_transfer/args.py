@@ -46,6 +46,8 @@ def get_args():
     parser.add_argument('--embed-droprate', type=float, default=0.0, help="for embedded droupout")
 
     # KimCNN parameters
+    parser.add_argument('--dropblock', type=float, default=0.0)
+    parser.add_argument('--dropblock-size', type=int, default=7)
     parser.add_argument('--batchnorm', action='store_true')
     parser.add_argument('--dynamic-pool', action='store_true')
     parser.add_argument('--output-channel', type=int, default=100)
@@ -55,7 +57,7 @@ def get_args():
     parser.add_argument('--sentence-num-hidden', type=int, default=50)
 
     # XML-CNN parameters
-    parser.add_argument('--num-bottleneck-hidden', type=int, default=100)
+    parser.add_argument('--bottleneck-units', type=int, default=100)
     parser.add_argument('--dynamic-pool-length', type=int, default=8)
 
     # Reranking parameters

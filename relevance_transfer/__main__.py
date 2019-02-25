@@ -10,9 +10,9 @@ import torch
 
 from common.evaluation import EvaluatorFactory
 from common.train import TrainerFactory
-from datasets.robust04 import Robust04, Robust04Hierarchical, Robust04CharQuantized
-from datasets.robust05 import Robust05, Robust05Hierarchical, Robust05CharQuantized
-from datasets.robust45 import Robust45, Robust45Hierarchical, Robust45CharQuantized
+from datasets.robust04 import Robust04, Robust04Hierarchical
+from datasets.robust05 import Robust05, Robust05Hierarchical
+from datasets.robust45 import Robust45, Robust45Hierarchical
 from han.model import HAN
 from kim_cnn.model import KimCNN
 from lstm_baseline.model import LSTMBaseline
@@ -114,12 +114,6 @@ if __name__ == '__main__':
         'Robust05': Robust05Hierarchical
     }
 
-    dataset_map_cq = {
-        'Robust04': Robust04CharQuantized,
-        'Robust45': Robust45CharQuantized,
-        'Robust05': Robust05CharQuantized
-    }
-
     model_map = {
         'LSTMBaseline': LSTMBaseline,
         'LSTMRegularized': LSTMRegularized,
@@ -218,10 +212,9 @@ if __name__ == '__main__':
             # Calculate dev and test metrics
             model = torch.load(trainer.snapshot_path)
 
-            if args.model == 'LSTMRegularized':
-                if model.beta_ema > 0:
-                    old_params = model.get_params()
-                    model.load_ema_params()
+            if hasattr(model, 'beta_ema') and model.beta_ema > 0:
+                old_params = model.get_params()
+                model.load_ema_params()
 
             if args.dataset not in dataset_map:
                 raise ValueError('Unrecognized dataset')
@@ -229,11 +222,11 @@ if __name__ == '__main__':
                 evaluate_dataset('dev', dataset_map[args.dataset], model, None, dev_iter, pred_scores, args, topic)
                 evaluate_dataset('test', dataset_map[args.dataset], model, None, test_iter, pred_scores, args, topic)
 
-            if args.model == 'LSTMRegularized':
-                if model.beta_ema > 0:
-                    model.load_params(old_params)
+            if hasattr(model, 'beta_ema') and model.beta_ema > 0:
+                model.load_params(old_params)
 
             with open(cache_path, 'wb') as cache_file:
                 pickle.dump(pred_scores, cache_file)
 
         save_ranks(pred_scores, args.output_path)
+

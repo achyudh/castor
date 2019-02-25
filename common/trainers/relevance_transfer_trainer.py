@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from tensorboardX import SummaryWriter
 from torch.utils.data.dataloader import default_collate
 
-from relevance_transfer.data_sampler import ImbalancedDatasetSampler
+from relevance_transfer.resample import ImbalancedDatasetSampler
 from common.trainers.trainer import Trainer
 
 
@@ -39,13 +39,23 @@ class RelevanceTransferTrainer(Trainer):
 
             # Randomly sample equal number of positive and negative documents
             if 'ignore_lengths' in self.config and self.config['ignore_lengths']:
-                indices = ImbalancedDatasetSampler(batch.text, batch.label).get_indices()
-                batch_text = batch.text[indices]
+                if 'resample' in self.config and self.config['resample']:
+                    indices = ImbalancedDatasetSampler(batch.text, batch.label).get_indices()
+                    batch_text = batch.text[indices]
+                    batch_label = batch.label[indices]
+                else:
+                    batch_text = batch.text
+                    batch_label = batch.label
             else:
-                indices = ImbalancedDatasetSampler(batch.text[0], batch.label).get_indices()
-                batch_text = batch.text[0][indices]
-                batch_lengths = batch.text[1][indices]
-            batch_label = batch.label[indices]
+                if 'resample' in self.config and self.config['resample']:
+                    indices = ImbalancedDatasetSampler(batch.text[0], batch.label).get_indices()
+                    batch_text = batch.text[0][indices]
+                    batch_lengths = batch.text[1][indices]
+                    batch_label = batch.label
+                else:
+                    batch_text = batch.text[0]
+                    batch_lengths = batch.text[1]
+                    batch_label = batch.label
 
             if hasattr(self.model, 'TAR') and self.model.TAR:
                 if 'ignore_lengths' in self.config and self.config['ignore_lengths']:

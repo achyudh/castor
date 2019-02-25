@@ -16,6 +16,10 @@ from datasets.aapd import AAPD
 from datasets.reuters import Reuters
 from datasets.yelp2014 import Yelp2014
 from datasets.imdb import IMDB
+from datasets.jira import Jira
+from datasets.gerrit import Gerrit
+from datasets.app_reviews import AppReviews
+from datasets.so_java import SOJava
 from kim_cnn.args import get_args
 from kim_cnn.model import KimCNN
 
@@ -56,8 +60,8 @@ def evaluate_dataset(split_name, dataset_cls, model, embedding, loader, batch_si
         saved_model_evaluator.single_label = single_label
     scores, metric_names = saved_model_evaluator.get_scores()
     logger.info('Evaluation metrics for {}'.format(split_name))
-    logger.info('\t'.join([' '] + metric_names))
-    logger.info('\t'.join([split_name] + list(map(str, scores))))
+    print(metric_names)
+    print(scores)
 
 
 if __name__ == '__main__':
@@ -85,7 +89,11 @@ if __name__ == '__main__':
         'Reuters': Reuters,
         'AAPD': AAPD,
         'IMDB': IMDB,
-        'Yelp2014': Yelp2014
+        'Yelp2014': Yelp2014,
+        'Jira': Jira,
+        'Gerrit': Gerrit,
+        'AppReviews': AppReviews,
+        'SOJava': SOJava
     }
 
     if args.dataset not in dataset_map:
@@ -120,7 +128,7 @@ if __name__ == '__main__':
             print('Shift model to GPU')
 
     parameter = filter(lambda p: p.requires_grad, model.parameters())
-    optimizer = torch.optim.Adadelta(parameter, lr=args.lr, weight_decay=args.weight_decay)
+    optimizer = torch.optim.Adam(parameter, lr=args.lr, weight_decay=args.weight_decay)
 
     if args.dataset not in dataset_map:
         raise ValueError('Unrecognized dataset')
@@ -159,11 +167,19 @@ if __name__ == '__main__':
     # Calculate dev and test metrics
     if hasattr(trainer, 'snapshot_path'):
         model = torch.load(trainer.snapshot_path)
+
+    if hasattr(model, 'beta_ema') and model.beta_ema > 0:
+        old_params = model.get_params()
+        model.load_ema_params()
+
     if args.dataset not in dataset_map:
         raise ValueError('Unrecognized dataset')
     else:
         evaluate_dataset('dev', dataset_map[args.dataset], model, None, dev_iter, args.batch_size, args.gpu, args.single_label)
         evaluate_dataset('test', dataset_map[args.dataset], model, None, test_iter, args.batch_size, args.gpu, args.single_label)
+
+    if hasattr(model, 'beta_ema') and model.beta_ema > 0:
+        model.load_params(old_params)
 
     if args.onnx:
         device = torch.device('cuda') if torch.cuda.is_available() and args.cuda else torch.device('cpu')

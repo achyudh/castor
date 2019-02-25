@@ -7,7 +7,7 @@ from torchtext.data import NestedField, Field, TabularDataset
 from torchtext.data.iterator import BucketIterator
 from torchtext.vocab import Vectors
 
-from .robust45 import clean_string, split_sents, char_quantize, process_docids, process_labels
+from .robust45 import clean_string, split_sents, process_docids, process_labels
 
 csv.field_size_limit(sys.maxsize)
 
@@ -58,34 +58,6 @@ class Robust05(TabularDataset):
         return BucketIterator.splits((train, val, test), batch_size=batch_size, repeat=False, shuffle=shuffle,
                                      sort_within_batch=True, device=device)
 
-
-class Robust05CharQuantized(Robust05):
-    ALPHABET = dict(map(lambda t: (t[1], t[0]),
-                        enumerate(list("""abcdefghijklmnopqrstuvwxyz0123456789,;.!?:'\"/\\|_@#$%^&*~`+-=<>()[]{}"""))))
-    TEXT_FIELD = Field(sequential=False, use_vocab=False, batch_first=True, preprocessing=char_quantize)
-
-    @classmethod
-    def iters(cls, path, vectors_name, vectors_cache, topic, batch_size=64, shuffle=True, device=0,
-              vectors=None, unk_init=torch.Tensor.zero_):
-        """
-        :param path: directory containing train, test, dev files
-        :param vectors_name: name of word vectors file
-        :param vectors_cache: path to directory containing word vectors file
-        :param topic: topic from which articles should be fetched
-        :param batch_size: batch size
-        :param device: GPU device
-        :param vectors: custom vectors - either predefined torchtext vectors or your own custom Vector classes
-        :param unk_init: function used to generate vector for OOV words
-        :return:
-        """
-        train_path = os.path.join('TREC', 'data', 'robust05_train_%s.tsv' % topic)
-        dev_path = os.path.join('TREC', 'data', 'robust05_dev_%s.tsv' % topic)
-        test_path = os.path.join('TREC', 'data', 'core17_%s.tsv' % topic)
-        train, val, test = cls.splits(path, train=train_path, validation=dev_path, test=test_path)
-
-        return BucketIterator.splits((train, val, test), batch_size=batch_size, repeat=False, shuffle=shuffle, device=device)
-
-
 class Robust05Hierarchical(Robust05):
-    IN_FIELD = Field(batch_first=True, tokenize=clean_string)
-    TEXT_FIELD = NestedField(IN_FIELD, tokenize=split_sents)
+    NESTING_FIELD = Field(batch_first=True, tokenize=clean_string)
+    TEXT_FIELD = NestedField(NESTING_FIELD, tokenize=split_sents)

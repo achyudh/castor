@@ -9,8 +9,9 @@ from lstm_regularization.embed_regularize import embedded_dropout
 
 
 class KimCNN(nn.Module):
+
     def __init__(self, config):
-        super(KimCNN, self).__init__()
+        super().__init__()
         dataset = config.dataset
         self.output_channel = config.output_channel
         target_class = config.target_class

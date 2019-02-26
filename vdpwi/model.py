@@ -1,7 +1,8 @@
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
+
 
 def hard_pad2d(x, pad):
     def pad_side(idx):
@@ -12,7 +13,9 @@ def hard_pad2d(x, pad):
     x = F.pad(x, padding)
     return x[:, :, :pad, :pad]
 
+
 class ResNet(nn.Module):
+
     def __init__(self, config):
         super().__init__()
         n_layers = config['res_layers']
@@ -34,7 +37,9 @@ class ResNet(nn.Module):
         x = torch.mean(x.view(x.size(0), x.size(1), -1), 2)
         return F.log_softmax(self.output(x), 1)
 
+
 class VDPWIConvNet(nn.Module):
+
     def __init__(self, config):
         super().__init__()
         def make_conv(n_in, n_out):
@@ -63,7 +68,9 @@ class VDPWIConvNet(nn.Module):
         x = F.relu(self.dnn(x.view(x.size(0), -1)))
         return F.log_softmax(self.output(x), 1)
 
+
 class VDPWIModel(nn.Module):
+
     def __init__(self, dim, config):
         super().__init__()
         self.arch = 'vdpwi'
@@ -77,14 +84,14 @@ class VDPWIModel(nn.Module):
 
     def create_pad_cube(self, sent1, sent2):
         pad_cube = []
-        max_len1 = max([len(s.split()) for s in sent1])
-        max_len2 = max([len(s.split()) for s in sent2])
+        sent1_lengths = [len(s.split(" ")) for s in sent1]
+        sent2_lengths = [len(s.split(" ")) for s in sent2]
+        max_len1 = max(sent1_lengths)
+        max_len2 = max(sent2_lengths)
 
-        for s1, s2 in zip(sent1, sent2):
-            pad1 = (max_len1 - len(s1.split()))
-            pad2 = (max_len2 - len(s2.split()))
+        for s1_length, s2_length in zip(sent1_lengths, sent2_lengths):
             pad_mask = np.ones((max_len1, max_len2))
-            pad_mask[:len(s1), :len(s2)] = 0
+            pad_mask[:s1_length, :s2_length] = 0
             pad_cube.append(pad_mask)
 
         pad_cube = np.array(pad_cube)

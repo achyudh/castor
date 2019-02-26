@@ -9,14 +9,16 @@ from lstm_regularization.embed_regularize import embedded_dropout
 
 
 class LSTMBaseline(nn.Module):
+
     def __init__(self, config):
-        super(LSTMBaseline, self).__init__()
+        super().__init__()
         dataset = config.dataset
         target_class = config.target_class
         self.is_bidirectional = config.bidirectional
         self.has_bottleneck_layer = config.bottleneck_layer
         self.mode = config.mode
         self.TAR = config.TAR
+        self.AR = config.AR
         self.beta_ema = config.beta_ema  ## Temporal averaging
         self.wdrop = config.wdrop ## Weight dropping
         self.embed_droprate = config.embed_droprate ## Embedding dropout 
@@ -84,11 +86,11 @@ class LSTMBaseline(nn.Module):
         if self.has_bottleneck_layer:
             x = F.relu(self.fc1(x))
             # x = self.dropout(x)
-            if self.TAR:
+            if self.TAR or self.AR:
                 return self.fc2(x), rnn_outs.permute(1,0,2)
             return self.fc2(x)
         else:
-            if self.TAR:
+            if self.TAR or self.AR:
                 return self.fc1(x), rnn_outs.permute(1,0,2)
             return self.fc1(x)
 

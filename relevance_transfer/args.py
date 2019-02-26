@@ -33,7 +33,6 @@ def get_args():
     parser.add_argument('--resample', action='store_true')
 
     # Baseline LSTM parameters
-    parser.add_argument('--bottleneck-layer', action='store_true')
     parser.add_argument('--num-layers', type=int, default=2)
     parser.add_argument('--hidden-dim', type=int, default=256)
     parser.add_argument('--bidirectional', action='store_true')
@@ -49,7 +48,6 @@ def get_args():
     parser.add_argument('--dropblock', type=float, default=0.0)
     parser.add_argument('--dropblock-size', type=int, default=7)
     parser.add_argument('--batchnorm', action='store_true')
-    parser.add_argument('--dynamic-pool', action='store_true')
     parser.add_argument('--output-channel', type=int, default=100)
 
     # HAN parameters
@@ -57,6 +55,9 @@ def get_args():
     parser.add_argument('--sentence-num-hidden', type=int, default=50)
 
     # XML-CNN parameters
+    parser.add_argument('--bottleneck-layer', action='store_true')
+    parser.add_argument('--dynamic-pool', action='store_true')
+    parser.add_argument('--variable-dynamic-pool', action='store_true')
     parser.add_argument('--bottleneck-units', type=int, default=100)
     parser.add_argument('--dynamic-pool-length', type=int, default=8)
 

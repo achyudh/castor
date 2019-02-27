@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import pickle
@@ -141,6 +142,9 @@ if __name__ == '__main__':
         else:
             pred_scores = dict()
 
+        with open(os.path.join('relevance_transfer', 'config.json'), 'r') as config_file:
+            topic_configs = json.load(config_file)
+
         for topic in dataset.TOPICS:
             topic_iter += 1
             # Skip topics that have already been predicted
@@ -152,16 +156,25 @@ if __name__ == '__main__':
                                                             topic, batch_size=args.batch_size, device=args.gpu,
                                                             unk_init=UnknownWordVecCache.unk)
 
-            config = deepcopy(args)
-            config.target_class = 1
-            config.dataset = train_iter.dataset
-            config.words_num = len(train_iter.dataset.TEXT_FIELD.vocab)
-
             print('Vocabulary size:', len(train_iter.dataset.TEXT_FIELD.vocab))
             print('Target Classes:', train_iter.dataset.NUM_CLASSES)
             print('Train Instances:', len(train_iter.dataset))
             print('Dev Instances:', len(dev_iter.dataset))
             print('Test Instances:', len(test_iter.dataset))
+
+            config = deepcopy(args)
+            config.target_class = 1
+            config.dataset = train_iter.dataset
+            config.words_num = len(train_iter.dataset.TEXT_FIELD.vocab)
+
+            if args.variable_dynamic_pool:
+                # Set dynamic pool length based on topic configs
+                if args.model in topic_configs and topic in topic_configs[args.model]:
+                    print("Setting dynamic_pool to", topic_configs[args.model][topic]["dynamic_pool"])
+                    config.dynamic_pool = topic_configs[args.model][topic]["dynamic_pool"]
+                    if config.dynamic_pool:
+                        print("Setting dynamic_pool_length to", topic_configs[args.model][topic]["dynamic_pool_length"])
+                        config.dynamic_pool_length = topic_configs[args.model][topic]["dynamic_pool_length"]
 
             model = model_map[args.model](config)
 

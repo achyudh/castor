@@ -48,6 +48,7 @@ def get_args():
     parser.add_argument('--dropblock', type=float, default=0.0)
     parser.add_argument('--dropblock-size', type=int, default=7)
     parser.add_argument('--batchnorm', action='store_true')
+    parser.add_argument('--attention', action='store_true')
     parser.add_argument('--output-channel', type=int, default=100)
 
     # HAN parameters
@@ -60,6 +61,9 @@ def get_args():
     parser.add_argument('--variable-dynamic-pool', action='store_true')
     parser.add_argument('--bottleneck-units', type=int, default=100)
     parser.add_argument('--dynamic-pool-length', type=int, default=8)
+
+    # HR-CNN parameters
+    parser.add_argument('--sentence-channel', type=int, default=100)
 
     # Reranking parameters
     parser.add_argument('--rerank', action='store_true')

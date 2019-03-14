@@ -41,6 +41,7 @@ def get_args():
     parser.add_argument('--embed-droprate', type=float, default=0.0, help="for embedded droupout")
     parser.add_argument('--batchnorm', action='store_true')
     parser.add_argument('--dynamic-pool', action='store_true')
+    parser.add_argument('--attention', action='store_true')
     parser.add_argument('--bottleneck-units', type=int, default=100)
     parser.add_argument('--dynamic-pool-length', type=int, default=8)
     parser.add_argument('--bottleneck-layer', action='store_true')

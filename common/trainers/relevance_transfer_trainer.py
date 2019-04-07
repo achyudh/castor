@@ -35,7 +35,7 @@ class RelevanceTransferTrainer(Trainer):
             self.model.train()
             self.optimizer.zero_grad()
             # Clip gradients to address exploding gradients in LSTM
-            torch.nn.utils.clip_grad_norm_( self.model.parameters(), 25.0)
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), 25.0)
 
             # Randomly sample equal number of positive and negative documents
             if 'ignore_lengths' in self.config and self.config['ignore_lengths']:

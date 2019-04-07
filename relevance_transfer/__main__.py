@@ -18,6 +18,7 @@ from han.model import HAN
 from kim_cnn.model import KimCNN
 from lstm_baseline.model import LSTMBaseline
 from lstm_regularization.model import LSTMBaseline as LSTMRegularized
+from hr_cnn.model import HRCNN
 from relevance_transfer.args import get_args
 from relevance_transfer.rerank import rerank
 from xml_cnn.model import XmlCNN
@@ -53,7 +54,7 @@ def get_logger():
 
 def evaluate_dataset(split_name, dataset_cls, model, embedding, loader, pred_scores, args, topic):
     saved_model_evaluator = EvaluatorFactory.get_evaluator(dataset_cls, model, embedding, loader, args.batch_size, args.gpu)
-    if args.model == 'HAN':
+    if args.model in {'HAN', 'HR-CNN'}:
         saved_model_evaluator.ignore_lengths = True
     dev_acc, dev_precision, dev_ap, dev_f1, dev_loss = saved_model_evaluator.get_scores()[0]
 
@@ -120,10 +121,11 @@ if __name__ == '__main__':
         'LSTMRegularized': LSTMRegularized,
         'KimCNN': KimCNN,
         'HAN': HAN,
-        'XML-CNN': XmlCNN
+        'XML-CNN': XmlCNN,
+        'HR-CNN': HRCNN
     }
 
-    if args.model == 'HAN':
+    if args.model in {'HAN', 'HR-CNN'}:
         dataset = dataset_map_hi[args.dataset]
     else:
         dataset = dataset_map[args.dataset]
@@ -206,7 +208,7 @@ if __name__ == '__main__':
                 'resample': args.resample
             }
 
-            if args.model == 'HAN':
+            if args.model in {'HAN', 'HR-CNN'}:
                 trainer_config['ignore_lengths'] = True
                 dev_evaluator.ignore_lengths = True
                 test_evaluator.ignore_lengths = True

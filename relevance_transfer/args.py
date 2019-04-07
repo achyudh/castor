@@ -12,7 +12,7 @@ def get_args():
     parser.add_argument('--mode', type=str, default='static', choices=['rand', 'static', 'non-static', 'multichannel'])
     parser.add_argument('--lr', type=float, default=0.001)
     parser.add_argument('--seed', type=int, default=3435)
-    parser.add_argument('--model', type=str, default='LSTMBaseline', choices=['LSTMBaseline', 'LSTMRegularized', 'KimCNN', 'HAN', 'XML-CNN'])
+    parser.add_argument('--model', type=str, default='LSTMBaseline', choices=['LSTMBaseline', 'LSTMRegularized', 'KimCNN', 'HAN', 'XML-CNN', 'HR-CNN'])
     parser.add_argument('--dataset', type=str, default='Robust04', choices=['Robust04', 'Robust05', 'Robust45'])
     parser.add_argument('--dev_every', type=int, default=30)
     parser.add_argument('--log_every', type=int, default=10)

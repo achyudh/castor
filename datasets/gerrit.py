@@ -7,7 +7,7 @@ from torchtext.data import NestedField, Field, TabularDataset
 from torchtext.data.iterator import BucketIterator
 from torchtext.vocab import Vectors
 
-from datasets.reuters import clean_string, clean_string_fl, split_sents
+from datasets.reuters import clean_string, split_sents
 
 
 def char_quantize(string, max_length=1000):
@@ -39,9 +39,9 @@ class Gerrit(TabularDataset):
         return len(ex.text)
 
     @classmethod
-    def splits(cls, path, train=os.path.join('SentimentSE', 'data', 'gerrit_train.tsv'),
-               validation=os.path.join('SentimentSE', 'data', 'gerrit_validation.tsv'),
-               test=os.path.join('SentimentSE', 'data', 'jira_test.tsv'), **kwargs):
+    def splits(cls, path, train=os.path.join('OSBugReports', 'data', 'new_description_OS_train.tsv'),
+               validation=os.path.join('OSBugReports', 'data', 'new_description_OS_validate.tsv'),
+               test=os.path.join('OSBugReports', 'data', 'new_description_OS_test.tsv'), **kwargs):
         return super(Gerrit, cls).splits(
             path, train=train, validation=validation, test=test,
             format='tsv', fields=[('label', cls.LABEL_FIELD), ('text', cls.TEXT_FIELD)]

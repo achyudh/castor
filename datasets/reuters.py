@@ -1,25 +1,33 @@
 import os
+import random
 import re
 
 import numpy as np
 import torch
+from nltk import tokenize
 from torchtext.data import NestedField, Field, TabularDataset
 from torchtext.data.iterator import BucketIterator
 from torchtext.vocab import Vectors
 
 
-def clean_string(string):
+def clean_string(string, sentence_droprate=0, max_length=5000):
     """
-    Performs tokenization and string cleaning for the Reuters dataset
+    Performs tokenization and string cleaning
     """
-    string = re.sub(r'[^A-Za-z0-9(),!?\'`]', ' ', string)
+    if sentence_droprate > 0:
+        lines = [x for x in tokenize.sent_tokenize(string) if len(x) > 1]
+        lines_drop = [x for x in lines if random.randint(0, 100) > 100 * sentence_droprate]
+        string = ' '.join(lines_drop if len(lines_drop) > 0 else lines)
+
+    string = re.sub(r'[^A-Za-z0-9]', ' ', string)
     string = re.sub(r'\s{2,}', ' ', string)
-    return string.lower().strip().split()
+    tokenized_string = string.lower().strip().split()
+    return tokenized_string[:min(max_length, len(tokenized_string))]
 
 
-def split_sents(string):
-    string = re.sub(r"[!?]", " ", string)
-    return string.strip().split('.')
+def split_sents(string, max_length=40):
+    tokenized_string = [x for x in tokenize.sent_tokenize(string) if len(x) > 1]
+    return tokenized_string[:min(max_length, len(tokenized_string))]
 
 
 def char_quantize(string, max_length=1000):
@@ -29,17 +37,6 @@ def char_quantize(string, max_length=1000):
         return quantized_string[:max_length]
     else:
         return np.concatenate((quantized_string, np.zeros((max_length - len(quantized_string), len(ReutersCharQuantized.ALPHABET)), dtype=np.float32)))
-
-
-def clean_string_fl(string):
-    """
-    Returns only the title and first line (excluding the title) for every Reuters article, then calls clean_string
-    """
-    split_string = string.split('.')
-    if len(split_string) > 1:
-            return clean_string(split_string[0] + ". " + split_string[1])
-    else:
-        return clean_string(string)
 
 
 def process_labels(string):

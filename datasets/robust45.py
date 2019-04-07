@@ -29,9 +29,9 @@ def clean_string(string, sentence_droprate=0, max_length=5000):
     return tokenized_string[:min(max_length, len(tokenized_string))]
 
 
-def split_sents(string):
-    string = re.sub(r'[!?]', ' ', string)
-    return string.strip().split('.')
+def split_sents(string, max_length=50):
+    tokenized_string = [x for x in tokenize.sent_tokenize(string) if len(x) > 1]
+    return tokenized_string[:min(max_length, len(tokenized_string))]
 
 
 def process_labels(string):
@@ -64,11 +64,11 @@ class Robust45(TabularDataset):
     TEXT_FIELD = Field(batch_first=True, tokenize=clean_string, include_lengths=True)
     LABEL_FIELD = Field(sequential=False, use_vocab=False, batch_first=True, preprocessing=process_labels)
     DOCID_FIELD = Field(sequential=False, use_vocab=False, batch_first=True, preprocessing=process_docids)
-    # TOPICS = ['307', '310', '321', '325', '330']
-    TOPICS = ['307', '310', '321', '325', '330', '336', '341', '344', '345', '347', '350', '353', '354', '355', '356',
-              '362', '363', '367', '372', '375', '378', '379', '389', '393', '394', '397', '399', '400', '404', '408',
-              '414', '416', '419', '422', '423', '426', '427', '433', '435', '436', '439', '442', '443', '445', '614',
-              '620', '626', '646', '677', '690']
+    TOPICS = ['307', '310', '321', '325', '330']
+    # TOPICS = ['307', '310', '321', '325', '330', '336', '341', '344', '345', '347', '350', '353', '354', '355', '356',
+    #           '362', '363', '367', '372', '375', '378', '379', '389', '393', '394', '397', '399', '400', '404', '408',
+    #           '414', '416', '419', '422', '423', '426', '427', '433', '435', '436', '439', '442', '443', '445', '614',
+    #           '620', '626', '646', '677', '690']
 
     @staticmethod
     def sort_key(ex):
@@ -108,5 +108,9 @@ class Robust45(TabularDataset):
 
 
 class Robust45Hierarchical(Robust45):
+    @staticmethod
+    def clean_sentence(string):
+        return clean_string(string, sentence_droprate=0, max_length=100)
+
     NESTING_FIELD = Field(batch_first=True, tokenize=clean_string)
     TEXT_FIELD = NestedField(NESTING_FIELD, tokenize=split_sents)
